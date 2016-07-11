@@ -15,15 +15,16 @@
 #include <atomic>
 using namespace std;
 
-static atomic<bool> gIsRunning = true;
+static atomic<bool> gIsRunning(true);
 
 void smd_cmd(uvc_device_handle_t *devh);
 
 static void stereoThreadBody()
 {
-	while(gIsRunning)
-	{
-	}
+  while(gIsRunning)
+  {
+    
+  }
 }
 
 void cb(uvc_frame_t *frame, void *ptr)
