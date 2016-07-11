@@ -27,7 +27,7 @@ void cb(uvc_frame_t *frame, void *ptr)
   IplImage* r = cvCreateImage(cvGetSize(leftim),8,1);
   IplImage* dest = cvCreateImage(cvGetSize(leftim),8,3);
 
-  printf("callback! length = %u, ptr = %d\n", (unsigned int)frame->data_bytes, (int)ptr);
+  printf("callback! length = %u, ptr = %d\n", (unsigned int)frame->data_bytes, ( long)ptr);
   bgr = uvc_allocate_frame(frame->width * frame->height * 3);
   if(!bgr){
     printf("unable to allocate bgr frame!\n");

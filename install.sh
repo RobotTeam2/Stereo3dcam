@@ -11,9 +11,4 @@ cd build
 cmake ..
 make && sudo make install
 
-cd ../../
-mkdir object
-cd object
-cmake ..
-make
 
