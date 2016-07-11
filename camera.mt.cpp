@@ -13,17 +13,67 @@
 
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <list>
+#include <tuple>
 using namespace std;
-
 static atomic<bool> gIsRunning(true);
+static mutex gInputImageMtx;
+static list<tuple<IplImage*,IplImage*>> gInputImages;
 
 void smd_cmd(uvc_device_handle_t *devh);
+
+static void addInputImage(IplImage* l,IplImage* r)
+{
+   std::lock_guard<std::mutex> lock(gInputImageMtx);
+   if(gInputImages.size() < 1)
+   {
+       gInputImages.push_front(std::make_tuple(l,r));
+// will released by stereoProcess
+       return;
+   }
+  cvReleaseImage(&l);
+  cvReleaseImage(&r);  
+}
+static void stereoProcess(IplImage* l,IplImage* r)
+{
+  IplImage* depth = cvCreateImage(cvGetSize(l),8,1);
+  IplImage* dest = cvCreateImage(cvGetSize(l),8,3);
+  cvFindStereoCorrespondence( l, r, CV_DISPARITY_BIRCHFIELD, depth, 127,15, 3, 6, 8, 15 );  
+  cvCvtColor(depth,dest,CV_GRAY2BGR);
+  cvScale(dest,dest,255/100);
+  cvNamedWindow("Depth", CV_WINDOW_AUTOSIZE);
+  cvShowImage("Depth", dest);
+
+  cvReleaseImage(&depth);
+  cvReleaseImage(&dest);
+  cvReleaseImage(&l);
+  cvReleaseImage(&r);  
+}
+
 
 static void stereoThreadBody()
 {
   while(gIsRunning)
   {
-    
+    IplImage* l = nullptr;
+    IplImage* r = nullptr;
+
+    // get .. last left & right frame.
+    {
+      std::lock_guard<std::mutex> lock(gInputImageMtx);
+      if(gInputImages.empty() == false) {
+        auto front = gInputImages.front();
+        l = std::get<0>(front);
+        r = std::get<1>(front);
+        gInputImages.pop_front();
+      }
+    }
+    if(l != nullptr && r != nullptr)
+    {
+      stereoProcess(l,r);
+    }
+
   }
 }
 
@@ -35,10 +85,8 @@ void cb(uvc_frame_t *frame, void *ptr)
   IplImage *leftim = cvCreateImage(cvSize(320,480),8,3);
   IplImage *rightim = cvCreateImage(cvSize(320,480),8,3);
   IplImage *tmp = NULL;
-  IplImage* depth = cvCreateImage(cvGetSize(leftim),8,1);
   IplImage* l = cvCreateImage(cvGetSize(leftim),8,1);
   IplImage* r = cvCreateImage(cvGetSize(leftim),8,1);
-  IplImage* dest = cvCreateImage(cvGetSize(leftim),8,3);
 
   printf("callback! length = %u, ptr = %d\n", (unsigned int)frame->data_bytes, ( long)ptr);
   bgr = uvc_allocate_frame(frame->width * frame->height * 3);
@@ -75,21 +123,13 @@ void cb(uvc_frame_t *frame, void *ptr)
 
   cvCvtColor(leftim,l,CV_BGR2GRAY);
   cvCvtColor(rightim,r,CV_BGR2GRAY);
-// cvFindStereoCorrespondence( l, r, CV_DISPARITY_BIRCHFIELD, depth, 127,
-//15, 3, 6, 8, 15 );  
-//  cvCvtColor(depth,dest,CV_GRAY2BGR);
-//  cvScale(dest,dest,255/100);
-//  cvNamedWindow("Depth", CV_WINDOW_AUTOSIZE);
-//  cvShowImage("Depth", dest);
+  
+  addInputImage(l,r);
   cvNamedWindow("Original", CV_WINDOW_AUTOSIZE);
   cvShowImage("Original", cvImg);
 
 //  cvWaitKey(10);
 
-  cvReleaseImage(&depth);
-  cvReleaseImage(&l);
-  cvReleaseImage(&r);
-  cvReleaseImage(&dest);
 
   cvReleaseImageHeader(&cvImg);
   cvReleaseImageHeader(&leftim);
@@ -144,7 +184,6 @@ int main()
 					    );
       /* Print out the result */
       uvc_print_stream_ctrl(&ctrl, stderr);
-      gIsRunning = false;
       
       if(res < 0){
 	uvc_perror(res, "get_mode");
@@ -166,7 +205,7 @@ int main()
 	  }
 	  uvc_stop_streaming(devh);
 	  puts("Done streaming.");
-	  
+          gIsRunning = false;
 	}
 	 
 	uvc_close(devh);
