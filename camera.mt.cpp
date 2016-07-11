@@ -11,8 +11,20 @@
 #include <libuvc/libuvc_config.h>
 #include "libuvc/include/libuvc/libuvc_internal.h"
 
+#include <thread>
+#include <atomic>
+using namespace std;
+
+static atomic<bool> gIsRunning = true;
 
 void smd_cmd(uvc_device_handle_t *devh);
+
+static void stereoThreadBody()
+{
+	while(gIsRunning)
+	{
+	}
+}
 
 void cb(uvc_frame_t *frame, void *ptr)
 {
@@ -131,11 +143,14 @@ int main()
 					    );
       /* Print out the result */
       uvc_print_stream_ctrl(&ctrl, stderr);
+      gIsRunning = false;
       
       if(res < 0){
 	uvc_perror(res, "get_mode");
       }else{
 	res = uvc_start_streaming(devh, &ctrl, cb, (void *)12345, 0);
+	std::thread thd(stereoThreadBody);
+	thd.detach();
 	smd_cmd(devh);
 	if(res < 0){
 	  uvc_perror(res, "start_streaming");
