@@ -11,14 +11,15 @@
 #include <libuvc/libuvc_config.h>
 #include "libuvc/include/libuvc/libuvc_internal.h"
 
+#define COUNT_THR 768 //1% of 320x240 
 using namespace std;
 
 void smd_cmd(uvc_device_handle_t *devh);
 
 IplImage* cvImg= cvCreateImage(cvSize(640,480),8,3);;
 uvc_frame_t *bgr = uvc_allocate_frame(640 * 480 * 3);
-IplImage* leftim = cvCreateImage(cvSize(320,480),8,3);
-IplImage* rightim = cvCreateImage(cvSize(320,480),8,3);
+IplImage* leftim = cvCreateImage(cvSize(320,240),8,3);
+IplImage* rightim = cvCreateImage(cvSize(320,240),8,3);
 IplImage* tmp = NULL;
 IplImage* l = cvCreateImage(cvGetSize(leftim),8,1);
 IplImage* r = cvCreateImage(cvGetSize(leftim),8,1);
@@ -92,6 +93,8 @@ int main()
     CvPoint center20;
     CvPoint center30;
 
+    int count;
+
     res = uvc_init(&ctx, NULL);
     if (res < 0){
         uvc_perror(res, "uvc_init");
@@ -143,9 +146,9 @@ int main()
             cvShowImage("Original", cvImg);
 
             tmp=cvCloneImage(cvImg);
-            cvSetImageROI(tmp,cvRect(0,0,320,480));
+            cvSetImageROI(tmp,cvRect(0,120,320,360));
             cvResize(tmp,leftim,CV_INTER_LINEAR);
-            cvSetImageROI(tmp,cvRect(320,0,320,480));
+            cvSetImageROI(tmp,cvRect(320,120,320,360));
             cvResize(tmp,rightim,CV_INTER_LINEAR);
             cvReleaseImage(&tmp);
 
@@ -169,7 +172,10 @@ int main()
 
             cvNamedWindow("Depth10", CV_WINDOW_AUTOSIZE);
             cvCvtColor(depth10,dest,CV_GRAY2BGR);
-            cvCircle( dest, center10, 4, CV_RGB(255,0,0), 2, 4, 0);
+            count = cvCountNonZero(depth10);
+//            printf("depth10:%d \n",count);
+            if(count > COUNT_THR)
+                cvCircle( dest, center10, 4, CV_RGB(255,0,0), 2, 4, 0);
             cvShowImage("Depth10", dest);
 
             cvMoments(depth20, &moments20,0);
@@ -178,7 +184,10 @@ int main()
             
             cvNamedWindow("Depth20", CV_WINDOW_AUTOSIZE);
             cvCvtColor(depth20,dest,CV_GRAY2BGR);
-            cvCircle( dest, center20, 4, CV_RGB(255,0,0), 2, 4, 0);
+            count = cvCountNonZero(depth20);
+//            printf("depth20:%d \n",count);
+            if(count > COUNT_THR)
+                cvCircle( dest, center20, 4, CV_RGB(255,0,0), 2, 4, 0);
             cvShowImage("Depth20", dest);
 
             cvMoments(depth30, &moments30,0);
@@ -187,12 +196,11 @@ int main()
             
             cvNamedWindow("Depth30", CV_WINDOW_AUTOSIZE);
             cvCvtColor(depth30,dest,CV_GRAY2BGR);
-            cvCircle( dest, center30, 4, CV_RGB(255,0,0), 2, 4, 0);
+            count = cvCountNonZero(depth30);
+//            printf("depth30:%d \n",count);
+            if(count > COUNT_THR)
+                cvCircle( dest, center30, 4, CV_RGB(255,0,0), 2, 4, 0);
             cvShowImage("Depth30", dest);
-
-
-
-
             
             cvReleaseImageHeader(&cvImg);
             drawFlag = false;
