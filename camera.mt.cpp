@@ -25,6 +25,10 @@ IplImage* r = cvCreateImage(cvGetSize(leftim),8,1);
 IplImage* depth = cvCreateImage(cvGetSize(l),8,1);
 IplImage* dest = cvCreateImage(cvGetSize(l),8,3);
 
+IplImage* depth10 = cvCreateImage(cvGetSize(l),8,1);
+IplImage* depth20 = cvCreateImage(cvGetSize(l),8,1);
+IplImage* depth30 = cvCreateImage(cvGetSize(l),8,1);
+
 bool drawFlag=false;
 bool cbFlag=false;
   
@@ -81,6 +85,12 @@ int main()
     uvc_device_handle_t *devh=NULL;
     uvc_stream_ctrl_t ctrl;
     uvc_error_t res=(uvc_error_t)0;
+    CvMoments moments10;
+    CvMoments moments20;
+    CvMoments moments30;
+    CvPoint center10;
+    CvPoint center20;
+    CvPoint center30;
 
     res = uvc_init(&ctx, NULL);
     if (res < 0){
@@ -142,11 +152,48 @@ int main()
             cvCvtColor(leftim,l,CV_BGR2GRAY);
             cvCvtColor(rightim,r,CV_BGR2GRAY);
             cvFindStereoCorrespondence( l, r, CV_DISPARITY_BIRCHFIELD, depth, 127, 15, 3, 6, 8, 15 );  
+
+//            cvScale(depth,depth,255.0/100.0);
             cvCvtColor(depth,dest,CV_GRAY2BGR);
             cvScale(dest,dest,255/100);
             cvNamedWindow("Depth", CV_WINDOW_AUTOSIZE);
-            cvShowImage("Depth", dest);            
+            cvShowImage("Depth", dest);
+            
+            cvThreshold( depth, depth10, 10.0, 255.0, CV_THRESH_BINARY );
+            cvThreshold( depth, depth20, 20.0, 255.0, CV_THRESH_BINARY );
+            cvThreshold( depth, depth30, 30.0, 255.0, CV_THRESH_BINARY );
 
+            cvMoments(depth10, &moments10,0);
+            center10.x = moments10.m10/moments10.m00;
+            center10.y = moments10.m01/moments10.m00;
+
+            cvNamedWindow("Depth10", CV_WINDOW_AUTOSIZE);
+            cvCvtColor(depth10,dest,CV_GRAY2BGR);
+            cvCircle( dest, center10, 4, CV_RGB(255,0,0), 2, 4, 0);
+            cvShowImage("Depth10", dest);
+
+            cvMoments(depth20, &moments20,0);
+            center20.x = moments20.m10/moments20.m00;
+            center20.y = moments20.m01/moments20.m00;
+            
+            cvNamedWindow("Depth20", CV_WINDOW_AUTOSIZE);
+            cvCvtColor(depth20,dest,CV_GRAY2BGR);
+            cvCircle( dest, center20, 4, CV_RGB(255,0,0), 2, 4, 0);
+            cvShowImage("Depth20", dest);
+
+            cvMoments(depth30, &moments30,0);
+            center30.x = moments30.m10/moments30.m00;
+            center30.y = moments30.m01/moments30.m00;
+            
+            cvNamedWindow("Depth30", CV_WINDOW_AUTOSIZE);
+            cvCvtColor(depth30,dest,CV_GRAY2BGR);
+            cvCircle( dest, center30, 4, CV_RGB(255,0,0), 2, 4, 0);
+            cvShowImage("Depth30", dest);
+
+
+
+
+            
             cvReleaseImageHeader(&cvImg);
             drawFlag = false;
             cvWaitKey(1);
