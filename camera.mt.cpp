@@ -21,8 +21,11 @@ uvc_frame_t *bgr = uvc_allocate_frame(640 * 480 * 3);
 IplImage* leftim = cvCreateImage(cvSize(320,240),8,3);
 IplImage* rightim = cvCreateImage(cvSize(320,240),8,3);
 IplImage* tmp = NULL;
+IplImage* filter = cvCreateImage(cvGetSize(leftim),8,3);
+
 IplImage* l = cvCreateImage(cvGetSize(leftim),8,1);
 IplImage* r = cvCreateImage(cvGetSize(leftim),8,1);
+
 IplImage* depth = cvCreateImage(cvGetSize(l),8,1);
 IplImage* dest = cvCreateImage(cvGetSize(l),8,3);
 
@@ -152,11 +155,14 @@ int main()
             cvResize(tmp,rightim,CV_INTER_LINEAR);
             cvReleaseImage(&tmp);
 
-            cvCvtColor(leftim,l,CV_BGR2GRAY);
-            cvCvtColor(rightim,r,CV_BGR2GRAY);
+            cvSmooth(leftim,filter,CV_MEDIAN,11,11,0,0);
+            cvCvtColor(filter,l,CV_BGR2GRAY);
+
+            cvSmooth(rightim,filter,CV_MEDIAN,11,11,0,0);
+            cvCvtColor(filter,r,CV_BGR2GRAY);
+            
             cvFindStereoCorrespondence( l, r, CV_DISPARITY_BIRCHFIELD, depth, 127, 15, 3, 6, 8, 15 );  
 
-//            cvScale(depth,depth,255.0/100.0);
             cvCvtColor(depth,dest,CV_GRAY2BGR);
             cvScale(dest,dest,255/100);
             cvNamedWindow("Depth", CV_WINDOW_AUTOSIZE);
