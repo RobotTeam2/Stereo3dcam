@@ -11,7 +11,7 @@
 #include <libuvc/libuvc_config.h>
 #include "libuvc/include/libuvc/libuvc_internal.h"
 
-#define COUNT_THR 768 //1% of 320x240 
+#define COUNT_THR (768*5) //5% of 320x240 
 using namespace std;
 
 void smd_cmd(uvc_device_handle_t *devh);
@@ -95,6 +95,9 @@ int main()
     CvPoint center10;
     CvPoint center20;
     CvPoint center30;
+    
+    double distance = 0;
+    double angle = 0;
 
     int count;
 
@@ -141,7 +144,10 @@ int main()
     while(1){
        if(cbFlag == true){
             drawFlag = true;
-
+            
+            distance = 0;
+            angle = 0;
+            
             cvImg = cvCreateImageHeader(cvSize(bgr->width, bgr->height),IPL_DEPTH_8U,3);
 
             cvSetData(cvImg, bgr->data, bgr->width * 3);
@@ -172,6 +178,7 @@ int main()
             cvThreshold( depth, depth20, 20.0, 255.0, CV_THRESH_BINARY );
             cvThreshold( depth, depth30, 30.0, 255.0, CV_THRESH_BINARY );
 
+
             cvMoments(depth10, &moments10,0);
             center10.x = moments10.m10/moments10.m00;
             center10.y = moments10.m01/moments10.m00;
@@ -180,9 +187,13 @@ int main()
             cvCvtColor(depth10,dest,CV_GRAY2BGR);
             count = cvCountNonZero(depth10);
 //            printf("depth10:%d \n",count);
-            if(count > COUNT_THR)
+            if(count > COUNT_THR){
                 cvCircle( dest, center10, 4, CV_RGB(255,0,0), 2, 4, 0);
+                distance = 90.0;
+                angle = atan((((center10.x - 5) - 160)/(160/45))/distance);
+            }
             cvShowImage("Depth10", dest);
+
 
             cvMoments(depth20, &moments20,0);
             center20.x = moments20.m10/moments20.m00;
@@ -192,9 +203,13 @@ int main()
             cvCvtColor(depth20,dest,CV_GRAY2BGR);
             count = cvCountNonZero(depth20);
 //            printf("depth20:%d \n",count);
-            if(count > COUNT_THR)
+            if(count > COUNT_THR){
                 cvCircle( dest, center20, 4, CV_RGB(255,0,0), 2, 4, 0);
+                distance = 45.0;
+                angle = atan((((center20.x - 10) - 160)/(160/22.5))/distance);
+            }
             cvShowImage("Depth20", dest);
+
 
             cvMoments(depth30, &moments30,0);
             center30.x = moments30.m10/moments30.m00;
@@ -204,10 +219,15 @@ int main()
             cvCvtColor(depth30,dest,CV_GRAY2BGR);
             count = cvCountNonZero(depth30);
 //            printf("depth30:%d \n",count);
-            if(count > COUNT_THR)
+            if(count > COUNT_THR){
                 cvCircle( dest, center30, 4, CV_RGB(255,0,0), 2, 4, 0);
+                distance = 30.0;
+                angle = atan((((center30.x - 15) - 160)/(160/15))/distance);
+            }
             cvShowImage("Depth30", dest);
-            
+
+            printf("distance %f, angle %f \n", distance, angle*180/CV_PI);
+                      
             cvReleaseImageHeader(&cvImg);
             drawFlag = false;
             cvWaitKey(1);
