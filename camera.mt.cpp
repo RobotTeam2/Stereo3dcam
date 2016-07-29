@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string>
 #include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -11,14 +12,20 @@
 #include <libuvc/libuvc_config.h>
 #include "libuvc/include/libuvc/libuvc_internal.h"
 
-//#define SHOW_WINDOW
+#define SHOW_WINDOW
 #define COUNT_THR (768*5) //5% of 320x240 
 using namespace std;
 
 void smd_cmd(uvc_device_handle_t *devh);
 
-IplImage* cvImg= cvCreateImage(cvSize(640,480),8,3);;
-uvc_frame_t *bgr = uvc_allocate_frame(640 * 480 * 3);
+uvc_context_t *ctx=NULL;
+uvc_device_t *dev=NULL;
+uvc_device_handle_t *devh=NULL;
+uvc_stream_ctrl_t ctrl;
+uvc_error_t res=(uvc_error_t)0;
+
+IplImage* gOrigImage= cvCreateImage(cvSize(640,480),8,3);;
+uvc_frame_t *gBGRFrame = uvc_allocate_frame(640 * 480 * 3);
 IplImage* leftim = cvCreateImage(cvSize(320,240),8,3);
 IplImage* rightim = cvCreateImage(cvSize(320,240),8,3);
 IplImage* tmp = NULL;
@@ -27,8 +34,8 @@ IplImage* filter = cvCreateImage(cvGetSize(leftim),8,3);
 IplImage* l = cvCreateImage(cvGetSize(leftim),8,1);
 IplImage* r = cvCreateImage(cvGetSize(leftim),8,1);
 
-IplImage* depth = cvCreateImage(cvGetSize(l),8,1);
-IplImage* dest = cvCreateImage(cvGetSize(l),8,3);
+IplImage* gDepthImage = cvCreateImage(cvGetSize(l),8,1);
+IplImage* gDestImage = cvCreateImage(cvGetSize(l),8,3);
 
 IplImage* depth10 = cvCreateImage(cvGetSize(l),8,1);
 IplImage* depth20 = cvCreateImage(cvGetSize(l),8,1);
@@ -47,14 +54,16 @@ void cb(uvc_frame_t *frame, void *ptr)
   
     if(drawFlag == true) return;
 
-    ret = uvc_any2bgr(frame, bgr);
+    ret = uvc_any2bgr(frame, gBGRFrame);
     if(ret)uvc_perror(ret, "uvc_any2bgr");
 
 }
 
-int initCamera()
+uvc_error_t initCamera(void)
 {
-	    res = uvc_init(&ctx, NULL);
+    uvc_error_t res=(uvc_error_t)0;
+    
+	res = uvc_init(&ctx, NULL);
     if (res < 0){
         uvc_perror(res, "uvc_init");
         return res;
@@ -91,6 +100,8 @@ int initCamera()
         uvc_perror(res, "start_streaming");
         return res;
     }
+    
+    return res;
 }
 
 void smd_cmd(uvc_device_handle_t *devh)
@@ -122,103 +133,78 @@ void smd_cmd(uvc_device_handle_t *devh)
         printf("Control transfer Failed!\n");
 }
 
-int getDepth(
-)
+void getDepthImage(void)
 {
+	tmp=cvCloneImage(gOrigImage);
+	
+	cvSetImageROI(tmp,cvRect(0,120,320,360));
+	cvResize(tmp,leftim,CV_INTER_LINEAR);
+	cvSetImageROI(tmp,cvRect(320,120,320,360));
+	cvResize(tmp,rightim,CV_INTER_LINEAR);
 
-            tmp=cvCloneImage(cvImg);
-            cvSetImageROI(tmp,cvRect(0,120,320,360));
-            cvResize(tmp,leftim,CV_INTER_LINEAR);
-            cvSetImageROI(tmp,cvRect(320,120,320,360));
-            cvResize(tmp,rightim,CV_INTER_LINEAR);
-            cvReleaseImage(&tmp);
+	cvSmooth(leftim,filter,CV_MEDIAN,11,11,0,0);
+	cvCvtColor(filter,l,CV_BGR2GRAY);
+	cvSmooth(rightim,filter,CV_MEDIAN,11,11,0,0);
+	cvCvtColor(filter,r,CV_BGR2GRAY);
 
-            cvSmooth(leftim,filter,CV_MEDIAN,11,11,0,0);
-            cvCvtColor(filter,l,CV_BGR2GRAY);
-
-            cvSmooth(rightim,filter,CV_MEDIAN,11,11,0,0);
-            cvCvtColor(filter,r,CV_BGR2GRAY);
-            
-            cvFindStereoCorrespondence( l, r, CV_DISPARITY_BIRCHFIELD, depth, 127, 15, 3, 6, 8, 15 );  
-
-            cvCvtColor(depth,dest,CV_GRAY2BGR);
-            cvScale(dest,dest,255/100);
+	cvFindStereoCorrespondence( l, r, CV_DISPARITY_BIRCHFIELD, gDepthImage, 127, 15, 3, 6, 8, 15 );  
+	cvCvtColor(gDepthImage,gDestImage,CV_GRAY2BGR);
+	cvScale(gDestImage,gDestImage,255/100);
             
 #ifdef SHOW_WINDOW
-            cvNamedWindow("Depth", CV_WINDOW_AUTOSIZE);
-            cvShowImage("Depth", dest);
+	cvNamedWindow("Depth", CV_WINDOW_AUTOSIZE);
+	cvShowImage("Depth", gDestImage);
 #endif //SHOW_WINDOW
-	
+
 }
 
 
-int getPosition( // 名前ももうちょっと考えたい
-// -- 引数を考える
-// 画像のポインタ(depth画像)
-// 取得したいdepth
-// ディスプレイ表示の有無
-)
+bool getPosition(IplImage* src, int diff, double* angle)
 {
-    CvMoments moments10;
-    CvMoments moments20;
-    CvMoments moments30;
-    CvPoint center10;
-    CvPoint center20;
-    CvPoint center30;
+    CvMoments moments;
+    CvPoint center;
+    bool presence=false;
+    double distance=0.0;
+    int count;
+    char title[100];
     
-// 固定値で入れているものをパラメータ化する
-            
-            cvThreshold( depth, depth10, 10.0, 255.0, CV_THRESH_BINARY );
-            cvThreshold( depth, depth20, 20.0, 255.0, CV_THRESH_BINARY );
-            cvThreshold( depth, depth30, 30.0, 255.0, CV_THRESH_BINARY );
+    if(diff!=0){
+		
+		distance = 90.0/(double)diff;
+        cvThreshold( gDepthImage, depth10, diff, 255.0, CV_THRESH_BINARY );
 
+    	cvMoments(depth10, &moments,0);
+    	center.x = moments.m10/moments.m00;
+    	center.y = moments.m01/moments.m00;
+       	*angle = atan(((center.x  - diff*0.5 - 160)/((160/(diff*0.5)))/distance));
 
-            cvMoments(depth10, &moments10,0);
-            center10.x = moments10.m10/moments10.m00;
-            center10.y = moments10.m01/moments10.m00;
-
-            cvCvtColor(depth10,dest,CV_GRAY2BGR);
-            count = cvCountNonZero(depth10);
-//            printf("depth10:%d \n",count);
-            if(count > COUNT_THR){
-                cvCircle( dest, center10, 4, CV_RGB(255,0,0), 2, 4, 0);
-                distance = 90.0;
-                angle = atan((((center10.x - 5) - 160)/(160/45))/distance);
-            }
-
-// 20と30でちがうのはここだけ
-                angle = atan((((center20.x - 10) - 160)/(160/22.5))/distance);
-                angle = atan((((center30.x - 15) - 160)/(160/15))/distance);
-
-
-
+		cvCvtColor(depth10,gDestImage,CV_GRAY2BGR);
+    	count = cvCountNonZero(depth10);
+    	if(count > COUNT_THR){
+			presence = true;
+	       	cvCircle( gDestImage, center, 4, CV_RGB(255,0,0), 2, 4, 0);
+    	}
 #ifdef SHOW_WINDOW
-            cvNamedWindow("Depth10", CV_WINDOW_AUTOSIZE);
-            cvShowImage("Depth10", dest);
+		sprintf(title,"Depth%d",diff);
+	    cvNamedWindow(title, CV_WINDOW_AUTOSIZE);
+    	cvShowImage(title, gDestImage);
 #endif //SHOW_WINDOW
+	}
+
+	return presence;
 }
 
 int main()
 {
-    uvc_context_t *ctx=NULL;
-    uvc_device_t *dev=NULL;
-    uvc_device_handle_t *devh=NULL;
-    uvc_stream_ctrl_t ctrl;
-    uvc_error_t res=(uvc_error_t)0;
-
-    
     double distance = 0;
     double angle = 0;
 
-    int count;
+    initCamera();
 
-//-- cameraの初期化
-
-
-//-- 特殊モード突入
     smd_cmd(devh);
 
-//-- メインループ
+    gOrigImage = cvCreateImageHeader(cvSize(640, 480),IPL_DEPTH_8U,3);
+
     while(1){
        if(cbFlag == true){
             drawFlag = true;
@@ -226,26 +212,24 @@ int main()
             distance = 0;
             angle = 0;
             
-            cvImg = cvCreateImageHeader(cvSize(bgr->width, bgr->height),IPL_DEPTH_8U,3);
-
-            cvSetData(cvImg, bgr->data, bgr->width * 3);
+            cvSetData(gOrigImage, gBGRFrame->data, 640 * 3);
 
 #ifdef SHOW_WINDOW
             cvNamedWindow("Original", CV_WINDOW_AUTOSIZE);
-            cvShowImage("Original", cvImg);
+            cvShowImage("Original", gOrigImage);
 #endif //SHOW_WINDOW
 
-//-- depth画像取得
-
-//-- depth10の処理 --
-
-//-- depth20の処理 --
-
-//-- depth30の処理 --
+			getDepthImage();
+		
+			if(getPosition(gDestImage, 10, &angle))
+				distance = 90.0;
+			if(getPosition(gDestImage, 20, &angle))
+				distance = 45.0;
+			if(getPosition(gDestImage, 30, &angle))
+				distance = 30.0;
 
             printf("distance %f, angle %f \n", distance, angle*180/CV_PI);
                       
-            cvReleaseImageHeader(&cvImg);
             drawFlag = false;
             cvWaitKey(1);
             cbFlag = false;
