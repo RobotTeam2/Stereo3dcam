@@ -170,13 +170,13 @@ bool getPosition(IplImage* src, int diff, double* angle)
     
     if(diff!=0){
 		
-		distance = 90.0/(double)diff;
+		distance = 900.0/(double)diff;
         cvThreshold( gDepthImage, depth10, diff, 255.0, CV_THRESH_BINARY );
 
     	cvMoments(depth10, &moments,0);
     	center.x = moments.m10/moments.m00;
     	center.y = moments.m01/moments.m00;
-       	*angle = atan(((center.x  - diff*0.5 - 160)/((160/(diff*0.5)))/distance));
+       	*angle = atan(((center.x  - diff*0.5 - 160)/((160/(distance*0.5)))/distance));
 
 		cvCvtColor(depth10,gDestImage,CV_GRAY2BGR);
     	count = cvCountNonZero(depth10);
