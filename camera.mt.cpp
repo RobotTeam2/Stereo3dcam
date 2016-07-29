@@ -13,7 +13,13 @@
 #include "libuvc/include/libuvc/libuvc_internal.h"
 
 #define SHOW_WINDOW
-#define COUNT_THR (768*5) //5% of 320x240 
+#define VGA_WIDTH 640
+#define VGA_HEIGHT 480
+
+#define COUNT_THR (768*5) //5% of 320x240
+#define DIFFDIST 900.0
+
+
 using namespace std;
 
 void smd_cmd(uvc_device_handle_t *devh);
@@ -24,22 +30,23 @@ uvc_device_handle_t *devh=NULL;
 uvc_stream_ctrl_t ctrl;
 uvc_error_t res=(uvc_error_t)0;
 
-IplImage* gOrigImage= cvCreateImage(cvSize(640,480),8,3);;
-uvc_frame_t *gBGRFrame = uvc_allocate_frame(640 * 480 * 3);
-IplImage* leftim = cvCreateImage(cvSize(320,240),8,3);
-IplImage* rightim = cvCreateImage(cvSize(320,240),8,3);
-IplImage* tmp = NULL;
-IplImage* filter = cvCreateImage(cvGetSize(leftim),8,3);
+IplImage* gOrigImage= cvCreateImage(cvSize(VGA_WIDTH,VGA_HEIGHT),8,3);;
+uvc_frame_t *gBGRFrame = uvc_allocate_frame(VGA_WIDTH * VGA_HEIGHT * 3);
 
-IplImage* l = cvCreateImage(cvGetSize(leftim),8,1);
-IplImage* r = cvCreateImage(cvGetSize(leftim),8,1);
+IplImage* gLeftImage = cvCreateImage(cvSize(VGA_WIDTH/2,VGA_HEIGHT/2),8,3);
+IplImage* gGrayLeftImage = cvCreateImage(cvGetSize(gLeftImage),8,1);
 
-IplImage* gDepthImage = cvCreateImage(cvGetSize(l),8,1);
-IplImage* gDestImage = cvCreateImage(cvGetSize(l),8,3);
+IplImage* gRightImage = cvCreateImage(cvSize(VGA_WIDTH/2,VGA_HEIGHT/2),8,3);
+IplImage* gGrayRightImage = cvCreateImage(cvGetSize(gLeftImage),8,1);
 
-IplImage* depth10 = cvCreateImage(cvGetSize(l),8,1);
-IplImage* depth20 = cvCreateImage(cvGetSize(l),8,1);
-IplImage* depth30 = cvCreateImage(cvGetSize(l),8,1);
+IplImage* gTempImage = NULL;
+IplImage* gFliterImage = cvCreateImage(cvGetSize(gLeftImage),8,3);
+
+IplImage* gDepthImage = cvCreateImage(cvGetSize(gGrayLeftImage),8,3);
+IplImage* gGrayDepthImage = cvCreateImage(cvGetSize(gGrayLeftImage),8,1);
+
+IplImage* gThrDepthImage = cvCreateImage(cvGetSize(gLeftImage),8,3);
+IplImage* gGrayThrDepthImage = cvCreateImage(cvGetSize(gGrayLeftImage),8,1);
 
 bool drawFlag=false;
 bool cbFlag=false;
@@ -87,7 +94,7 @@ uvc_error_t initCamera(void)
         uvc_print_diag(devh, stderr);
     }
 
-    res = uvc_get_stream_ctrl_format_size(devh, &ctrl,UVC_FRAME_FORMAT_YUYV,640, 480, 30);
+    res = uvc_get_stream_ctrl_format_size(devh, &ctrl,UVC_FRAME_FORMAT_YUYV,VGA_WIDTH, VGA_HEIGHT, 30);
     uvc_print_stream_ctrl(&ctrl, stderr);
       
     if(res < 0){
@@ -135,59 +142,58 @@ void smd_cmd(uvc_device_handle_t *devh)
 
 void getDepthImage(void)
 {
-	tmp=cvCloneImage(gOrigImage);
+	gTempImage=cvCloneImage(gOrigImage);
 	
-	cvSetImageROI(tmp,cvRect(0,120,320,360));
-	cvResize(tmp,leftim,CV_INTER_LINEAR);
-	cvSetImageROI(tmp,cvRect(320,120,320,360));
-	cvResize(tmp,rightim,CV_INTER_LINEAR);
+	cvSetImageROI(gTempImage,cvRect(0,          VGA_HEIGHT/4,VGA_WIDTH/2,VGA_HEIGHT/2 + VGA_HEIGHT/4));
+	cvResize(gTempImage,gLeftImage,CV_INTER_LINEAR);
+	cvSetImageROI(gTempImage,cvRect(VGA_WIDTH/2,VGA_HEIGHT/4,VGA_WIDTH  ,VGA_HEIGHT/2 + VGA_HEIGHT/4));
+	cvResize(gTempImage,gRightImage,CV_INTER_LINEAR);
 
-	cvSmooth(leftim,filter,CV_MEDIAN,11,11,0,0);
-	cvCvtColor(filter,l,CV_BGR2GRAY);
-	cvSmooth(rightim,filter,CV_MEDIAN,11,11,0,0);
-	cvCvtColor(filter,r,CV_BGR2GRAY);
+	cvSmooth(gLeftImage,gFliterImage,CV_MEDIAN,11,11,0,0);
+	cvCvtColor(gFliterImage,gGrayLeftImage,CV_BGR2GRAY);
+	cvSmooth(gRightImage,gFliterImage,CV_MEDIAN,11,11,0,0);
+	cvCvtColor(gFliterImage,gGrayRightImage,CV_BGR2GRAY);
 
-	cvFindStereoCorrespondence( l, r, CV_DISPARITY_BIRCHFIELD, gDepthImage, 127, 15, 3, 6, 8, 15 );  
-	cvCvtColor(gDepthImage,gDestImage,CV_GRAY2BGR);
-	cvScale(gDestImage,gDestImage,255/100);
+	cvFindStereoCorrespondence( gGrayLeftImage, gGrayRightImage, CV_DISPARITY_BIRCHFIELD, gGrayDepthImage, 127, 15, 3, 6, 8, 15 );  
+	cvCvtColor(gGrayDepthImage,gDepthImage,CV_GRAY2BGR);
+	cvScale(gDepthImage,gDepthImage,255/100);
             
 #ifdef SHOW_WINDOW
 	cvNamedWindow("Depth", CV_WINDOW_AUTOSIZE);
-	cvShowImage("Depth", gDestImage);
+	cvShowImage("Depth", gDepthImage);
 #endif //SHOW_WINDOW
 
 }
 
 
-bool getPosition(IplImage* src, int diff, double* angle)
+bool getPosition(int diff, double* angle, double* distance)
 {
     CvMoments moments;
     CvPoint center;
     bool presence=false;
-    double distance=0.0;
     int count;
     char title[100];
     
     if(diff!=0){
 		
-		distance = 900.0/(double)diff;
-        cvThreshold( gDepthImage, depth10, diff, 255.0, CV_THRESH_BINARY );
+		*distance = DIFFDIST/(double)diff;
+        cvThreshold( gGrayDepthImage, gGrayThrDepthImage, diff, 255.0, CV_THRESH_BINARY );
 
-    	cvMoments(depth10, &moments,0);
+    	cvMoments(gGrayThrDepthImage, &moments,0);
     	center.x = moments.m10/moments.m00;
     	center.y = moments.m01/moments.m00;
-       	*angle = atan(((center.x  - diff*0.5 - 160)/((160/(distance*0.5)))/distance));
+       	*angle = atan(((center.x  - diff*0.5 - VGA_WIDTH/4)/(((VGA_WIDTH/4)/((*distance)*0.5)))/(*distance)));
 
-		cvCvtColor(depth10,gDestImage,CV_GRAY2BGR);
-    	count = cvCountNonZero(depth10);
+		cvCvtColor(gGrayThrDepthImage,gThrDepthImage,CV_GRAY2BGR);
+    	count = cvCountNonZero(gGrayThrDepthImage);
     	if(count > COUNT_THR){
 			presence = true;
-	       	cvCircle( gDestImage, center, 4, CV_RGB(255,0,0), 2, 4, 0);
+	       	cvCircle( gThrDepthImage, center, 4, CV_RGB(255,0,0), 2, 4, 0);
     	}
 #ifdef SHOW_WINDOW
-		sprintf(title,"Depth%d",diff);
+		sprintf(title,"Diff %d, Distance %f",diff, *distance);
 	    cvNamedWindow(title, CV_WINDOW_AUTOSIZE);
-    	cvShowImage(title, gDestImage);
+    	cvShowImage(title, gThrDepthImage);
 #endif //SHOW_WINDOW
 	}
 
@@ -198,12 +204,13 @@ int main()
 {
     double distance = 0;
     double angle = 0;
+    int diff;
 
     initCamera();
 
     smd_cmd(devh);
 
-    gOrigImage = cvCreateImageHeader(cvSize(640, 480),IPL_DEPTH_8U,3);
+    gOrigImage = cvCreateImageHeader(cvSize(VGA_WIDTH, VGA_HEIGHT),IPL_DEPTH_8U,3);
 
     while(1){
        if(cbFlag == true){
@@ -212,7 +219,7 @@ int main()
             distance = 0;
             angle = 0;
             
-            cvSetData(gOrigImage, gBGRFrame->data, 640 * 3);
+            cvSetData(gOrigImage, gBGRFrame->data, VGA_WIDTH * 3);
 
 #ifdef SHOW_WINDOW
             cvNamedWindow("Original", CV_WINDOW_AUTOSIZE);
@@ -221,12 +228,8 @@ int main()
 
 			getDepthImage();
 		
-			if(getPosition(gDestImage, 10, &angle))
-				distance = 90.0;
-			if(getPosition(gDestImage, 20, &angle))
-				distance = 45.0;
-			if(getPosition(gDestImage, 30, &angle))
-				distance = 30.0;
+			for(diff = 10;diff <= 30; diff+= 10)
+				if(getPosition(diff, &angle, &distance))
 
             printf("distance %f, angle %f \n", distance, angle*180/CV_PI);
                       
