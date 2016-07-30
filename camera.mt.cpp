@@ -13,7 +13,7 @@
 #include "libuvc/include/libuvc/libuvc_internal.h"
 #include "r2_chassis.h"
 
-//#define SHOW_WINDOW
+#define SHOW_WINDOW
 #define VGA_WIDTH 640
 #define VGA_HEIGHT 480
 
@@ -60,6 +60,7 @@ long requestSetSpeed, requestMove, requestStop, requestDebugWheelLeft, requestDe
 
 #define ALL_STEPS (15+36+36+15)
 long gCount = ALL_STEPS;
+bool cmdExeFlag=false;
 
 void cb(uvc_frame_t *frame, void *ptr)
 {
@@ -251,6 +252,7 @@ static void listener(long requestID, r2_chassis_event_t eventType, void *eventAr
         break;
     case R2_CHASSIS_EVENT_COMPLETE:
         printf("completed");
+        cmdExeFlag = false;
         if (gCount == ALL_STEPS) {
             printf("\nsleep 10");
             sleep(10);
@@ -258,6 +260,7 @@ static void listener(long requestID, r2_chassis_event_t eventType, void *eventAr
         else {
             usleep(1000000);
         }
+/*
         if (gCount == ALL_STEPS) {
             requestMove = r2_chassis_move(R2_CHASSIS_DIR_FORWARD, 15);
             gCount -= 15;
@@ -274,6 +277,7 @@ static void listener(long requestID, r2_chassis_event_t eventType, void *eventAr
             requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 15);
             gCount -= 15;
         }
+*/
         break;
     case R2_CHASSIS_EVENT_ABORT:
         printf("aborted");
@@ -290,7 +294,8 @@ int main()
     double nearestDistance = 0;
 
     double angle = 0;
-    int diff;
+    double nearestAngle = 0;
+//    int diff;
     
     //initialize camera
     initCamera();
@@ -307,7 +312,7 @@ int main()
     //main loop
     while(1){
 
-        if(cbFlag == true){
+        if((cbFlag == true)&&(cmdExeFlag == false) ){
         	
         	// Get Distance
             drawFlag = true;
@@ -324,12 +329,26 @@ int main()
 
             getDepthImage();
             
-            nearestDistance = 0;
-        
-            for(diff = 10;diff <= 30; diff+= 10)
-                if(getPosition(diff, &angle, &distance)) nearestDistance = distance;
+            nearestDistance = 900;
+            nearestAngle = 0;
 
-            printf("nearestDistance %f, angle %f \n", nearestDistance, angle*180/CV_PI);
+            if(getPosition(25.0, &angle, &distance)){
+		nearestDistance = distance;
+		nearestAngle = angle;
+            }
+
+            if(getPosition(30.0, &angle, &distance)){
+		nearestDistance = distance;
+		nearestAngle = angle;
+            }
+
+            if(getPosition(33.0, &angle, &distance)){
+		nearestDistance = distance;
+		nearestAngle = angle;
+            }
+ 
+            nearestAngle = nearestAngle*180/CV_PI;
+//            printf("nearestDistance %f, angle %f \n", nearestDistance, nearestAngle);
                       
             drawFlag = false;
             cvWaitKey(1);
@@ -337,35 +356,40 @@ int main()
 
 
 	        // Move
-	        if((angle < -10.0) && (nearestDistance == 45.0)){
+		
+		printf("nearestAngle %f \n", nearestAngle);
+	        if((nearestAngle < -10.0) && (nearestDistance == 36.0)){
 	            printf("Move:R2_CHASSIS_DIR_TURN_LEFT\n");
-	                requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 10);
+                    cmdExeFlag = true;
+	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 10);
 	            gCount --;
 	        }
-	        else if((angle <10.0) && (nearestDistance == 45.0)){
-	            printf("Move:R2_CHASSIS_DIR_FORWARD\n");
+	        else if((nearestAngle <=10.0) && (nearestDistance == 36.0)){
+	            printf("Move:R2_CHASSIS_D/IR_FORWARD\n");
+                   cmdExeFlag = true;
 	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_FORWARD, 15);
 	            gCount -= 15;
 	        }
-	        else if(nearestDistance == 45.0){
+	        else if((nearestAngle > 10.0) && (nearestDistance == 36.0)){
 	            printf("Move:R2_CHASSIS_DIR_TURN_RIGHT\n");
+                    cmdExeFlag = true;
 	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_RIGHT, 10);
 	            gCount --;
 	        }
-	        else if(nearestDistance == 30.0){
+	        else if(nearestDistance == 27.0){
 	            printf("Move:R2_CHASSIS_DIR_BACKWARD\n");
-	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 15);
+                    cmdExeFlag = true;
+	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 5);
 	            gCount -= 15;
 	        }
 
         }
-        
     }
 
     //finalize chassis
-    sleep(10);
-    r2_chassis_off();
-    sleep(2);
+ //   sleep(10);
+ //   r2_chassis_off();
+ //   sleep(2);
 
     r2_chassis_finalize();
     return 0;

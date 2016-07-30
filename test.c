@@ -83,27 +83,6 @@ int main()
 	r2_chassis_setListener(listener);
 	sleep(10);
 	r2_chassis_on();
-	sleep(2);
-
-	requestSetSpeed = r2_chassis_setSpeed(255);
-	sleep(1);
-
-	requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 10);
-	sleep(5);
-	requestStop = r2_chassis_stop();
-	sleep(5);
-	requestDebugWheelLeft = r2_chassis_debug_wheel(0, 10);
-	requestDebugWheelRight = r2_chassis_debug_wheel(1, -10);
-	sleep(5);
-
-	while (count > 0) {
-		sleep(1);
-	}
-
-	sleep(10);
-	r2_chassis_off();
-	sleep(2);
-
 	r2_chassis_finalize();
 	return 0;
 }
