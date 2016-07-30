@@ -13,7 +13,7 @@
 #include "libuvc/include/libuvc/libuvc_internal.h"
 #include "r2_chassis.h"
 
-#define SHOW_WINDOW
+//#define SHOW_WINDOW
 #define VGA_WIDTH 640
 #define VGA_HEIGHT 480
 
@@ -69,7 +69,7 @@ void cb(uvc_frame_t *frame, void *ptr)
 
     cbFlag=true;
 //  printf("callback! length = %u, ptr = %d\n", (unsigned int)frame->data_bytes, (int)ptr);
-  
+
     if(drawFlag == true) return;
 
     ret = uvc_any2bgr(frame, gBGRFrame);
@@ -80,7 +80,7 @@ void cb(uvc_frame_t *frame, void *ptr)
 uvc_error_t initCamera(void)
 {
     uvc_error_t res=(uvc_error_t)0;
-    
+
     res = uvc_init(&ctx, NULL);
     if (res < 0){
         uvc_perror(res, "uvc_init");
@@ -107,18 +107,18 @@ uvc_error_t initCamera(void)
 
     res = uvc_get_stream_ctrl_format_size(devh, &ctrl,UVC_FRAME_FORMAT_YUYV,VGA_WIDTH, VGA_HEIGHT, 30);
     uvc_print_stream_ctrl(&ctrl, stderr);
-      
+
     if(res < 0){
         uvc_perror(res, "get_mode");
         return res;
     }
-    
+
     res = uvc_start_streaming(devh, &ctrl, cb, (void *)12345, 0);
     if(res < 0){
         uvc_perror(res, "start_streaming");
         return res;
     }
-    
+
     return res;
 }
 
@@ -131,14 +131,14 @@ void smd_cmd(uvc_device_handle_t *devh)
     buf[0] = 0x76;
     buf[1] = 0xc3;
     dev_handle = devh->usb_devh;
-    
+
     res = libusb_claim_interface(dev_handle, 0);
     if(res != LIBUSB_SUCCESS) printf("claim 0 is failed!\n");
     res = libusb_control_transfer(devh->usb_devh,0x21,0x01,0x0800,0x0600,(unsigned char *)buf,sizeof(buf),0);
     printf("res = %d\n",res);
     if(res == sizeof(buf))
         printf("Control transfer Success!\n");
-    else 
+    else
         printf("Control transfer Failed!\n");
 
 
@@ -147,14 +147,14 @@ void smd_cmd(uvc_device_handle_t *devh)
     res = libusb_control_transfer(devh->usb_devh,0x21,0x01,0xa00,0x600,(unsigned char *)buf,sizeof(buf),0);
     if(res == sizeof(buf))
         printf("Control transfer Success!\n");
-    else 
+    else
         printf("Control transfer Failed!\n");
 }
 
 void getDepthImage(void)
 {
     gTempImage=cvCloneImage(gOrigImage);
-    
+
     cvSetImageROI(gTempImage,cvRect(0,          VGA_HEIGHT/4,VGA_WIDTH/2,VGA_HEIGHT/2 + VGA_HEIGHT/4));
     cvResize(gTempImage,gLeftImage,CV_INTER_LINEAR);
     cvSetImageROI(gTempImage,cvRect(VGA_WIDTH/2,VGA_HEIGHT/4,VGA_WIDTH  ,VGA_HEIGHT/2 + VGA_HEIGHT/4));
@@ -165,10 +165,10 @@ void getDepthImage(void)
     cvSmooth(gRightImage,gFliterImage,CV_MEDIAN,11,11,0,0);
     cvCvtColor(gFliterImage,gGrayRightImage,CV_BGR2GRAY);
 
-    cvFindStereoCorrespondence( gGrayLeftImage, gGrayRightImage, CV_DISPARITY_BIRCHFIELD, gGrayDepthImage, 127, 15, 3, 6, 8, 15 );  
+    cvFindStereoCorrespondence( gGrayLeftImage, gGrayRightImage, CV_DISPARITY_BIRCHFIELD, gGrayDepthImage, 127, 15, 3, 6, 8, 15 );
     cvCvtColor(gGrayDepthImage,gDepthImage,CV_GRAY2BGR);
     cvScale(gDepthImage,gDepthImage,255/100);
-            
+
 #ifdef SHOW_WINDOW
     cvNamedWindow("Depth", CV_WINDOW_AUTOSIZE);
     cvShowImage("Depth", gDepthImage);
@@ -187,22 +187,22 @@ bool getPosition(int diff, double* angle, double* distance)
 #ifdef SHOW_WINDOW
     char title[100];
 #endif //SHOW_WINDOW
-    
+
     if(diff!=0){
-        
+
         *distance = DIFFDIST/(double)diff;
         cvThreshold( gGrayDepthImage, gGrayThrDepthImage, diff, 255.0, CV_THRESH_BINARY );
 
         cvMoments(gGrayThrDepthImage, &moments,0);
         center.x = moments.m10/moments.m00;
         center.y = moments.m01/moments.m00;
-           *angle = atan(((center.x  - diff*0.5 - VGA_WIDTH/4)/(((VGA_WIDTH/4)/((*distance)*0.5)))/(*distance)));
+        *angle = atan(((center.x  - diff*0.5 - VGA_WIDTH/4)/(((VGA_WIDTH/4)/((*distance)*0.5)))/(*distance)));
 
         cvCvtColor(gGrayThrDepthImage,gThrDepthImage,CV_GRAY2BGR);
         nonZeroCount = cvCountNonZero(gGrayThrDepthImage);
         if(nonZeroCount > COUNT_THR){
             presence = true;
-               cvCircle( gThrDepthImage, center, 4, CV_RGB(255,0,0), 2, 4, 0);
+            cvCircle( gThrDepthImage, center, 4, CV_RGB(255,0,0), 2, 4, 0);
         }
 #ifdef SHOW_WINDOW
         sprintf(title,"Diff %d, Distance %f",diff, *distance);
@@ -296,7 +296,7 @@ int main()
     double angle = 0;
     double nearestAngle = 0;
 //    int diff;
-    
+
     //initialize camera
     initCamera();
     smd_cmd(devh);
@@ -313,13 +313,13 @@ int main()
     while(1){
 
         if((cbFlag == true)&&(cmdExeFlag == false) ){
-        	
-        	// Get Distance
+
+            // Get Distance
             drawFlag = true;
-            
+
             distance = 0;
             angle = 0;
-            
+
             cvSetData(gOrigImage, gBGRFrame->data, VGA_WIDTH * 3);
 
 #ifdef SHOW_WINDOW
@@ -328,60 +328,60 @@ int main()
 #endif //SHOW_WINDOW
 
             getDepthImage();
-            
+
             nearestDistance = 900;
             nearestAngle = 0;
 
-            if(getPosition(25.0, &angle, &distance)){
-		nearestDistance = distance;
-		nearestAngle = angle;
+            if(getPosition(25.0, &angle, &distance)){ // expected distance :36.0
+                nearestDistance = distance;
+                nearestAngle = angle;
             }
 
-            if(getPosition(30.0, &angle, &distance)){
-		nearestDistance = distance;
-		nearestAngle = angle;
+            if(getPosition(30.0, &angle, &distance)){ // expected distance :30.0
+                nearestDistance = distance;
+                nearestAngle = angle;
             }
 
-            if(getPosition(33.0, &angle, &distance)){
-		nearestDistance = distance;
-		nearestAngle = angle;
+            if(getPosition(33.0, &angle, &distance)){ // expected distance :27.0
+                nearestDistance = distance;
+                nearestAngle = angle;
             }
- 
+
+            //normalize
             nearestAngle = nearestAngle*180/CV_PI;
-//            printf("nearestDistance %f, angle %f \n", nearestDistance, nearestAngle);
-                      
+            nearestDistance = floor(nearestDistance);
+            printf("nearestDistance %f, angle %f \n", nearestDistance, nearestAngle);
+
             drawFlag = false;
             cvWaitKey(1);
             cbFlag = false;
 
 
-	        // Move
-		
-		printf("nearestAngle %f \n", nearestAngle);
-	        if((nearestAngle < -10.0) && (nearestDistance == 36.0)){
-	            printf("Move:R2_CHASSIS_DIR_TURN_LEFT\n");
-                    cmdExeFlag = true;
-	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 10);
-	            gCount --;
-	        }
-	        else if((nearestAngle <=10.0) && (nearestDistance == 36.0)){
-	            printf("Move:R2_CHASSIS_D/IR_FORWARD\n");
-                   cmdExeFlag = true;
-	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_FORWARD, 15);
-	            gCount -= 15;
-	        }
-	        else if((nearestAngle > 10.0) && (nearestDistance == 36.0)){
-	            printf("Move:R2_CHASSIS_DIR_TURN_RIGHT\n");
-                    cmdExeFlag = true;
-	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_RIGHT, 10);
-	            gCount --;
-	        }
-	        else if(nearestDistance == 27.0){
-	            printf("Move:R2_CHASSIS_DIR_BACKWARD\n");
-                    cmdExeFlag = true;
-	            requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 5);
-	            gCount -= 15;
-	        }
+            // Move
+            if((nearestAngle < -10.0) && (nearestDistance == 36.0)){
+                printf("Move:R2_CHASSIS_DIR_TURN_LEFT\n");
+                cmdExeFlag = true;
+                requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 10);
+                gCount --;
+            }
+            else if((nearestAngle <=10.0) && (nearestDistance == 36.0)){
+                printf("Move:R2_CHASSIS_D/IR_FORWARD\n");
+                cmdExeFlag = true;
+                requestMove = r2_chassis_move(R2_CHASSIS_DIR_FORWARD, 5);
+                gCount -= 15;
+            }
+            else if((nearestAngle > 10.0) && (nearestDistance == 36.0)){
+                printf("Move:R2_CHASSIS_DIR_TURN_RIGHT\n");
+                cmdExeFlag = true;
+                requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_RIGHT, 10);
+                gCount --;
+            }
+            else if(nearestDistance == 27.0){
+                printf("Move:R2_CHASSIS_DIR_BACKWARD\n");
+                cmdExeFlag = true;
+                requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 5);
+                gCount -= 15;
+            }
 
         }
     }
