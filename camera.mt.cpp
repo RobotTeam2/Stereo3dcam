@@ -13,7 +13,7 @@
 #include "libuvc/include/libuvc/libuvc_internal.h"
 #include "r2_chassis.h"
 
-#define SHOW_WINDOW
+//#define SHOW_WINDOW
 #define VGA_WIDTH 640
 #define VGA_HEIGHT 480
 
@@ -182,7 +182,10 @@ bool getPosition(int diff, double* angle, double* distance)
     CvPoint center;
     bool presence=false;
     int nonZeroCount;
+
+#ifdef SHOW_WINDOW
     char title[100];
+#endif //SHOW_WINDOW
     
     if(diff!=0){
         
