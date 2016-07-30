@@ -13,7 +13,7 @@ git clone https://github.com/RobotTeam2/Stereo3dcam.git
 です。  
 ③ su権限で必要な環境のインストール  
 cd Stereo3dcam  
-su ./install.sh   
+sudo ./install.sh   
 を実行。  
 ④su権限でエディタで  
 ./libuvc/include/libuvc/libuvc_internal.h  
