@@ -17,8 +17,12 @@
 #define VGA_WIDTH 640
 #define VGA_HEIGHT 480
 
-#define COUNT_THR (768*5) //5% of 320x240
+#define COUNT_THR (768*1) //1% of 320x240
 #define DIFFDIST 900.0
+
+#define KOGAMO_NEAR 18.0
+#define KOGAMO_MID 30.0
+#define KOGAMO_FAR 40.0
 
 
 using namespace std;
@@ -177,26 +181,27 @@ void getDepthImage(void)
 }
 
 
-bool getPosition(int diff, double* angle, double* distance)
+bool getPosition(double distance, double* angle)
 {
     CvMoments moments;
     CvPoint center;
     bool presence=false;
     int nonZeroCount;
+    int diff;
 
 #ifdef SHOW_WINDOW
     char title[100];
 #endif //SHOW_WINDOW
 
-    if(diff!=0){
+    if(distance!=0){
 
-        *distance = DIFFDIST/(double)diff;
+        diff = (int)(DIFFDIST/distance);
         cvThreshold( gGrayDepthImage, gGrayThrDepthImage, diff, 255.0, CV_THRESH_BINARY );
 
         cvMoments(gGrayThrDepthImage, &moments,0);
         center.x = moments.m10/moments.m00;
         center.y = moments.m01/moments.m00;
-        *angle = atan(((center.x  - diff*0.5 - VGA_WIDTH/4)/(((VGA_WIDTH/4)/((*distance)*0.5)))/(*distance)));
+        *angle = atan(((center.x  - (double)diff*0.5 - VGA_WIDTH/4)/(((VGA_WIDTH/4)/((distance)*0.5)))/(distance)));
 
         cvCvtColor(gGrayThrDepthImage,gThrDepthImage,CV_GRAY2BGR);
         nonZeroCount = cvCountNonZero(gGrayThrDepthImage);
@@ -205,7 +210,7 @@ bool getPosition(int diff, double* angle, double* distance)
             cvCircle( gThrDepthImage, center, 4, CV_RGB(255,0,0), 2, 4, 0);
         }
 #ifdef SHOW_WINDOW
-        sprintf(title,"Diff %d, Distance %f",diff, *distance);
+        sprintf(title,"Distance %f, Diff %d", distance,diff);
         cvNamedWindow(title, CV_WINDOW_AUTOSIZE);
         cvShowImage(title, gThrDepthImage);
 #endif //SHOW_WINDOW
@@ -290,12 +295,10 @@ static void listener(long requestID, r2_chassis_event_t eventType, void *eventAr
 
 int main()
 {
-    double distance = 0;
     double nearestDistance = 0;
 
     double angle = 0;
     double nearestAngle = 0;
-//    int diff;
 
     //initialize camera
     initCamera();
@@ -312,12 +315,11 @@ int main()
     //main loop
     while(1){
 
-        if((cbFlag == true)&&(cmdExeFlag == false) ){
+        if(cbFlag == true){
 
             // Get Distance
             drawFlag = true;
 
-            distance = 0;
             angle = 0;
 
             cvSetData(gOrigImage, gBGRFrame->data, VGA_WIDTH * 3);
@@ -332,18 +334,18 @@ int main()
             nearestDistance = 900;
             nearestAngle = 0;
 
-            if(getPosition(25.0, &angle, &distance)){ // expected distance :36.0
-                nearestDistance = distance;
+            if(getPosition(KOGAMO_FAR, &angle)){ // expected distance :KOGAMO_FAR
+                nearestDistance = KOGAMO_FAR;
                 nearestAngle = angle;
             }
 
-            if(getPosition(30.0, &angle, &distance)){ // expected distance :30.0
-                nearestDistance = distance;
-                nearestAngle = angle;
-            }
+//            if(getPosition(KOGAMO_MID, &angle)){ // expected distance :KOGAMO_MID
+//                nearestDistance = KOGAMO_MID;
+//                nearestAngle = angle;
+//            }
 
-            if(getPosition(33.0, &angle, &distance)){ // expected distance :27.0
-                nearestDistance = distance;
+            if(getPosition(KOGAMO_NEAR, &angle)){ // expected distance :KOGAMO_NEAR
+                nearestDistance = KOGAMO_NEAR;
                 nearestAngle = angle;
             }
 
@@ -356,33 +358,33 @@ int main()
             cvWaitKey(1);
             cbFlag = false;
 
-
-            // Move
-            if((nearestAngle < -10.0) && (nearestDistance == 36.0)){
-                printf("Move:R2_CHASSIS_DIR_TURN_LEFT\n");
-                cmdExeFlag = true;
-                requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 10);
-                gCount --;
+            if(cmdExeFlag == false){
+                // Move
+                if((nearestAngle < -10.0) && (nearestDistance == KOGAMO_FAR)){
+                    printf("Move:R2_CHASSIS_DIR_TURN_LEFT\n");
+                    cmdExeFlag = true;
+                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 10);
+                    gCount --;
+                }
+                else if((nearestAngle <=10.0) && (nearestDistance == KOGAMO_FAR)){
+                    printf("Move:R2_CHASSIS_D/IR_FORWARD\n");
+                    cmdExeFlag = true;
+                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_FORWARD, 5);
+                    gCount -= 15;
+                }
+                else if((nearestAngle > 10.0) && (nearestDistance == KOGAMO_FAR)){
+                    printf("Move:R2_CHASSIS_DIR_TURN_RIGHT\n");
+                    cmdExeFlag = true;
+                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_RIGHT, 10);
+                    gCount --;
+                }
+                else if(nearestDistance == KOGAMO_NEAR){
+                    printf("Move:R2_CHASSIS_DIR_BACKWARD\n");
+                    cmdExeFlag = true;
+                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 5);
+                    gCount -= 15;
+                }
             }
-            else if((nearestAngle <=10.0) && (nearestDistance == 36.0)){
-                printf("Move:R2_CHASSIS_D/IR_FORWARD\n");
-                cmdExeFlag = true;
-                requestMove = r2_chassis_move(R2_CHASSIS_DIR_FORWARD, 5);
-                gCount -= 15;
-            }
-            else if((nearestAngle > 10.0) && (nearestDistance == 36.0)){
-                printf("Move:R2_CHASSIS_DIR_TURN_RIGHT\n");
-                cmdExeFlag = true;
-                requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_RIGHT, 10);
-                gCount --;
-            }
-            else if(nearestDistance == 27.0){
-                printf("Move:R2_CHASSIS_DIR_BACKWARD\n");
-                cmdExeFlag = true;
-                requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 5);
-                gCount -= 15;
-            }
-
         }
     }
 
