@@ -306,6 +306,7 @@ int main()
     gOrigImage = cvCreateImageHeader(cvSize(VGA_WIDTH, VGA_HEIGHT),IPL_DEPTH_8U,3);
 
     //initialize chassis
+//    r2_chassis_init("/dev/ttyACM0");
     r2_chassis_init("/dev/ttyUSB0");
     r2_chassis_setListener(listener);
     sleep(10);
@@ -363,25 +364,25 @@ int main()
                 if((nearestAngle < -10.0) && (nearestDistance == KOGAMO_FAR)){
                     printf("Move:R2_CHASSIS_DIR_TURN_LEFT\n");
                     cmdExeFlag = true;
-                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 10);
+                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_LEFT, 1);
                     gCount --;
                 }
                 else if((nearestAngle <=10.0) && (nearestDistance == KOGAMO_FAR)){
                     printf("Move:R2_CHASSIS_D/IR_FORWARD\n");
                     cmdExeFlag = true;
-                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_FORWARD, 5);
+                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_FORWARD, 1);
                     gCount -= 15;
                 }
                 else if((nearestAngle > 10.0) && (nearestDistance == KOGAMO_FAR)){
                     printf("Move:R2_CHASSIS_DIR_TURN_RIGHT\n");
                     cmdExeFlag = true;
-                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_RIGHT, 10);
+                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_TURN_RIGHT, 1);
                     gCount --;
                 }
                 else if(nearestDistance == KOGAMO_NEAR){
                     printf("Move:R2_CHASSIS_DIR_BACKWARD\n");
                     cmdExeFlag = true;
-                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 5);
+                    requestMove = r2_chassis_move(R2_CHASSIS_DIR_BACKWARD, 1);
                     gCount -= 15;
                 }
             }
